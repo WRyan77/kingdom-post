@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Kingdom Post Blog</title>
+    <link>https://kingdompost.app</link>
+    <description>Thoughtful writing about faith, news, and technology.</description>
+    <language>en-us</language>
+
+    <item>
+      <title>Kingdom Post: A Calm Place for Christian News</title>
+      <link>https://kingdompost.app/blog/kingdom-post-calm-christian-news</link>
+      <guid>https://kingdompost.app/blog/kingdom-post-calm-christian-news</guid>
+      <pubDate>Mon, 03 Feb 2026 08:00:00 GMT</pubDate>
+      <author>Kindgom Post(Kingdom Post)</author>
+      <category>Christian News</category>
+      <category>Faith</category>
+      <description>
+        <![CDATA[
+        Kingdom Post is a Christian news app designed for calm, thoughtful reading. Learn why believers across the theological spectrum are drawn to its distraction-free, privacy-first approach to news.
+        ]]>
+      </description>
+    </item>
+
+  </channel>
+</rss>
