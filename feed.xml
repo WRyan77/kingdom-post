@@ -1,17 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
+<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
   <channel>
     <title>Kingdom Post Blog</title>
-    <link>https://kingdompost.app</link>
+    <link>https://kingdompost.news/</link>
     <description>Thoughtful writing about faith, news, and technology.</description>
     <language>en-us</language>
-
+    <image>
+      <url>https://raw.githubusercontent.com/WRyan77/kingdom-post/57fac9fffdafe18a49208ef786a1d20e85a6f742/blog/media/gary-ellis-5vF16lNZ-gI-unsplash.jpg</url>
+      <title>Kingdom Post Blog</title>
+      <link>https://kingdompost.news/</link>
+    </image>
     <item>
       <title>Kingdom Post: A Calm Place for Christian News</title>
       <link>https://kingdompost.app/blog/kingdom-post-calm-christian-news</link>
       <guid>https://kingdompost.app/blog/kingdom-post-calm-christian-news</guid>
-      <pubDate>Mon, 03 Feb 2026 08:00:00 GMT</pubDate>
-      <author>Kindgom Post(Kingdom Post)</author>
+      <pubDate>Mon, 03 Feb 2026 10:00:00 GMT</pubDate>
+      <author>Kingdom Post (Kingdom Post)</author>
       <category>Christian News</category>
       <category>Faith</category>
       <description>
@@ -19,7 +23,8 @@
         Kingdom Post is a Christian news app designed for calm, thoughtful reading. Learn why believers across the theological spectrum are drawn to its distraction-free, privacy-first approach to news.
         ]]>
       </description>
+      <enclosure url="https://raw.githubusercontent.com/WRyan77/kingdom-post/57fac9fffdafe18a49208ef786a1d20e85a6f742/blog/media/gary-ellis-5vF16lNZ-gI-unsplash.jpg" type="image/jpeg" length="0"/>
+      <media:content url="https://raw.githubusercontent.com/WRyan77/kingdom-post/57fac9fffdafe18a49208ef786a1d20e85a6f742/blog/media/gary-ellis-5vF16lNZ-gI-unsplash.jpg" medium="image" type="image/jpeg"/>
     </item>
-
   </channel>
 </rss>
