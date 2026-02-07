@@ -134,6 +134,51 @@
     .mode-toggle button.active { background: #e8e5de; font-weight: 600; }
     .mode-toggle button + button { border-left: 1px solid #d5d0c6; }
 
+    /* ── Image Popover ── */
+    .img-popover {
+      display: none;
+      background: #fff;
+      border: 1px solid #d5d0c6;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .img-popover.open { display: block; }
+
+    .img-popover label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #8a8578;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+    }
+
+    .img-popover label + label { margin-top: 0.6rem; }
+
+    .img-popover input {
+      width: 100%;
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid #e5e2dc;
+      border-radius: 5px;
+      background: #f8f7f4;
+      color: #2c2c2c;
+    }
+
+    .img-popover input:focus { outline: none; border-color: #4a6741; box-shadow: 0 0 0 2px rgba(74,103,65,0.15); }
+
+    .img-popover-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+
     /* ── Metadata Fields ── */
     .meta-fields {
       display: grid;
@@ -360,7 +405,20 @@
         <label for="filename">File:</label>
         <input type="text" id="filename" placeholder="my-blog-post.md" />
       </div>
+      <button id="insert-img-btn" title="Insert image at cursor">Insert Image</button>
       <button class="primary" id="save-btn">Save to GitHub</button>
+    </div>
+
+    <!-- Image insert popover -->
+    <div class="img-popover" id="img-popover">
+      <label for="img-url-input">Image URL</label>
+      <input type="text" id="img-url-input" placeholder="https://..." />
+      <label for="img-alt-input">Alt text (optional)</label>
+      <input type="text" id="img-alt-input" placeholder="Description of image" />
+      <div class="img-popover-actions">
+        <button id="img-cancel">Cancel</button>
+        <button class="primary" id="img-insert">Insert</button>
+      </div>
     </div>
 
     <div class="meta-fields">
@@ -560,6 +618,87 @@
         currentMarkdown = editor.textContent;
       }
       updateCharCount();
+    });
+
+    // ── Insert Image ──
+    const insertImgBtn = document.getElementById('insert-img-btn');
+    const imgPopover = document.getElementById('img-popover');
+    const imgUrlInput = document.getElementById('img-url-input');
+    const imgAltInput = document.getElementById('img-alt-input');
+    const imgInsertBtn = document.getElementById('img-insert');
+    const imgCancelBtn = document.getElementById('img-cancel');
+    let savedRange = null;
+
+    insertImgBtn.addEventListener('click', function() {
+      if (mode !== 'preview') {
+        showToast('Switch to Preview mode to insert images', 'error');
+        return;
+      }
+
+      // Save the current cursor position
+      var sel = window.getSelection();
+      if (sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+        savedRange = sel.getRangeAt(0).cloneRange();
+      } else {
+        // No cursor in editor — place at end
+        savedRange = null;
+      }
+
+      imgUrlInput.value = '';
+      imgAltInput.value = '';
+      imgPopover.classList.add('open');
+      imgUrlInput.focus();
+    });
+
+    imgCancelBtn.addEventListener('click', function() {
+      imgPopover.classList.remove('open');
+    });
+
+    imgInsertBtn.addEventListener('click', function() {
+      var url = imgUrlInput.value.trim();
+      if (!url) {
+        showToast('Enter an image URL', 'error');
+        imgUrlInput.focus();
+        return;
+      }
+
+      var alt = imgAltInput.value.trim() || '';
+      var img = document.createElement('img');
+      img.src = url;
+      img.alt = alt;
+      img.style.maxWidth = '100%';
+      img.style.borderRadius = '6px';
+
+      // Restore cursor position and insert
+      var sel = window.getSelection();
+      if (savedRange) {
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+        savedRange.deleteContents();
+        savedRange.insertNode(img);
+        // Move cursor after the image
+        var range = document.createRange();
+        range.setStartAfter(img);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } else {
+        // Append to end of editor
+        editor.appendChild(img);
+      }
+
+      pastedHTML = editor.innerHTML;
+      imgPopover.classList.remove('open');
+      updateCharCount();
+    });
+
+    // Allow Enter in the URL input to trigger insert
+    imgUrlInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); imgInsertBtn.click(); }
+    });
+
+    imgAltInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); imgInsertBtn.click(); }
     });
 
     // ── GitHub API helpers ──
