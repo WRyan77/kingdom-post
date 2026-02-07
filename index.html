@@ -193,6 +193,7 @@
     let activeFile = null;
 
     function parseFrontmatter(text) {
+      text = text.replace(/\r\n/g, '\n');
       const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
       if (!match) return { meta: {}, body: text };
       const meta = {};

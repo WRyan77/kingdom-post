@@ -134,6 +134,41 @@
     .mode-toggle button.active { background: #e8e5de; font-weight: 600; }
     .mode-toggle button + button { border-left: 1px solid #d5d0c6; }
 
+    /* ── Metadata Fields ── */
+    .meta-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+      margin-bottom: 1rem;
+      background: #fff;
+      border: 1px solid #e5e2dc;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .meta-field { display: flex; flex-direction: column; gap: 0.25rem; }
+    .meta-field.full-width { grid-column: 1 / -1; }
+
+    .meta-field label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #8a8578;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .meta-field input {
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid #e5e2dc;
+      border-radius: 5px;
+      background: #f8f7f4;
+      color: #2c2c2c;
+    }
+
+    .meta-field input:focus { outline: none; border-color: #4a6741; box-shadow: 0 0 0 2px rgba(74,103,65,0.15); }
+
     /* ── Editor Area ── */
     .editor-wrapper {
       background: #fff;
@@ -328,6 +363,25 @@
       <button class="primary" id="save-btn">Save to GitHub</button>
     </div>
 
+    <div class="meta-fields">
+      <div class="meta-field full-width">
+        <label for="meta-title">Title</label>
+        <input type="text" id="meta-title" placeholder="My Blog Post Title" />
+      </div>
+      <div class="meta-field">
+        <label for="meta-author">Author</label>
+        <input type="text" id="meta-author" placeholder="Kingdom Post" />
+      </div>
+      <div class="meta-field">
+        <label for="meta-date">Date</label>
+        <input type="date" id="meta-date" />
+      </div>
+      <div class="meta-field full-width">
+        <label for="meta-image">Image URL</label>
+        <input type="text" id="meta-image" placeholder="https://... or blog/media/photo.jpg" />
+      </div>
+    </div>
+
     <div class="editor-wrapper">
       <div class="editor-area preview"
            id="editor"
@@ -375,9 +429,9 @@
 
   <script>
     // ── State ──
-    let mode = 'preview';          // 'preview' | 'edit'
-    let pastedHTML = '';            // raw HTML from the paste
-    let currentMarkdown = '';       // converted markdown
+    let mode = 'preview';
+    let pastedHTML = '';
+    let currentMarkdown = '';
 
     // ── Elements ──
     const editor = document.getElementById('editor');
@@ -392,6 +446,13 @@
     const settingsSave = document.getElementById('settings-save');
     const settingsCancel = document.getElementById('settings-cancel');
     const toast = document.getElementById('toast');
+    const metaTitle = document.getElementById('meta-title');
+    const metaAuthor = document.getElementById('meta-author');
+    const metaDate = document.getElementById('meta-date');
+    const metaImage = document.getElementById('meta-image');
+
+    // Default date to today
+    metaDate.value = new Date().toISOString().split('T')[0];
 
     // ── Turndown ──
     const turndown = new TurndownService({
@@ -462,7 +523,6 @@
       if (newMode === mode) return;
 
       if (newMode === 'edit') {
-        // Save current HTML and convert to markdown
         pastedHTML = editor.innerHTML;
         currentMarkdown = turndown.turndown(pastedHTML);
         editor.textContent = currentMarkdown;
@@ -471,12 +531,10 @@
         editor.setAttribute('data-placeholder', 'Markdown will appear here after pasting formatted text...');
         statusText.textContent = 'Editing markdown — changes will be saved';
       } else {
-        // Save edited markdown (user may have tweaked it)
         currentMarkdown = editor.textContent;
         editor.classList.remove('edit-mode');
         editor.classList.add('preview');
         editor.setAttribute('data-placeholder', 'Paste formatted text here...');
-        // Restore the formatted preview from original paste
         if (pastedHTML) {
           editor.innerHTML = pastedHTML;
         }
@@ -504,12 +562,136 @@
       updateCharCount();
     });
 
+    // ── GitHub API helpers ──
+    function githubHeaders(token) {
+      return {
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json'
+      };
+    }
+
+    async function getFileSha(repo, path, branch, token) {
+      try {
+        var resp = await fetch(
+          'https://api.github.com/repos/' + repo + '/contents/' + path + '?ref=' + branch,
+          { headers: { 'Authorization': 'Bearer ' + token } }
+        );
+        if (resp.ok) {
+          var data = await resp.json();
+          return data.sha;
+        }
+      } catch (e) { /* file doesn't exist */ }
+      return null;
+    }
+
+    async function putFile(repo, path, branch, token, content, message, sha) {
+      var body = {
+        message: message,
+        content: btoa(unescape(encodeURIComponent(content))),
+        branch: branch
+      };
+      if (sha) body.sha = sha;
+
+      var resp = await fetch(
+        'https://api.github.com/repos/' + repo + '/contents/' + path,
+        {
+          method: 'PUT',
+          headers: githubHeaders(token),
+          body: JSON.stringify(body)
+        }
+      );
+
+      if (!resp.ok) {
+        var err = await resp.json();
+        throw new Error(err.message || 'GitHub API error');
+      }
+      return resp.json();
+    }
+
+    // ── Build frontmatter ──
+    function buildFrontmatter(title, author, date, image) {
+      var lines = ['---'];
+      lines.push('title: "' + title.replace(/"/g, '\\"') + '"');
+      lines.push('author: "' + author.replace(/"/g, '\\"') + '"');
+      lines.push('date: "' + date + '"');
+      if (image) lines.push('image: "' + image.replace(/"/g, '\\"') + '"');
+      lines.push('---');
+      return lines.join('\n') + '\n';
+    }
+
+    // ── Update blogs.json ──
+    async function updateBlogsJson(s, filename, title, author, date, image) {
+      var blogsPath = 'blogs.json';
+
+      // Fetch current blogs.json
+      var blogs = [];
+      var sha = null;
+      try {
+        var resp = await fetch(
+          'https://api.github.com/repos/' + s.repo + '/contents/' + blogsPath + '?ref=' + s.branch,
+          { headers: { 'Authorization': 'Bearer ' + s.token } }
+        );
+        if (resp.ok) {
+          var data = await resp.json();
+          sha = data.sha;
+          blogs = JSON.parse(decodeURIComponent(escape(atob(data.content.replace(/\n/g, '')))));
+        }
+      } catch (e) { /* blogs.json doesn't exist yet, start fresh */ }
+
+      var dir = s.dir.replace(/^\/|\/$/g, '');
+      var filePath = dir ? dir + '/' + filename : filename;
+
+      // Remove existing entry for this file if updating
+      blogs = blogs.filter(function(b) { return b.file !== filePath; });
+
+      // Add new entry at the correct position (sorted newest first)
+      var newEntry = {
+        title: title,
+        author: author,
+        date: date,
+        image: image,
+        file: filePath
+      };
+
+      // Insert in date-sorted order (newest first)
+      var inserted = false;
+      for (var i = 0; i < blogs.length; i++) {
+        if (date >= blogs[i].date) {
+          blogs.splice(i, 0, newEntry);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) blogs.push(newEntry);
+
+      // Save updated blogs.json
+      var content = JSON.stringify(blogs, null, 2) + '\n';
+      await putFile(s.repo, blogsPath, s.branch, s.token, content, 'Update blogs.json: add ' + filename, sha);
+    }
+
     // ── Save to GitHub ──
     saveBtn.addEventListener('click', async function() {
       var s = loadSettings();
 
       if (!s.token || !s.repo) {
         showToast('Configure GitHub settings first (gear icon)', 'error');
+        return;
+      }
+
+      var title = metaTitle.value.trim();
+      var author = metaAuthor.value.trim();
+      var date = metaDate.value;
+      var image = metaImage.value.trim();
+
+      if (!title) {
+        showToast('Enter a title', 'error');
+        metaTitle.focus();
+        return;
+      }
+
+      if (!author) {
+        showToast('Enter an author', 'error');
+        metaAuthor.focus();
         return;
       }
 
@@ -534,6 +716,9 @@
         return;
       }
 
+      // Prepend frontmatter
+      var fullContent = buildFrontmatter(title, author, date, image) + '\n' + md;
+
       var dir = s.dir.replace(/^\/|\/$/g, '');
       var path = dir ? dir + '/' + filename : filename;
 
@@ -541,44 +726,15 @@
       saveBtn.textContent = 'Saving...';
 
       try {
-        // Check if file already exists (to get its SHA for updates)
-        var sha = null;
-        try {
-          var checkResp = await fetch(
-            'https://api.github.com/repos/' + s.repo + '/contents/' + path + '?ref=' + s.branch,
-            { headers: { 'Authorization': 'Bearer ' + s.token } }
-          );
-          if (checkResp.ok) {
-            var existing = await checkResp.json();
-            sha = existing.sha;
-          }
-        } catch (e) { /* file doesn't exist, that's fine */ }
+        // Save the markdown file
+        var sha = await getFileSha(s.repo, path, s.branch, s.token);
+        await putFile(s.repo, path, s.branch, s.token, fullContent, 'Add blog post: ' + filename, sha);
 
-        var body = {
-          message: 'Add blog post: ' + filename,
-          content: btoa(unescape(encodeURIComponent(md))),
-          branch: s.branch
-        };
-        if (sha) body.sha = sha;
+        // Update blogs.json
+        statusText.textContent = 'Updating blog index...';
+        await updateBlogsJson(s, filename, title, author, date, image);
 
-        var resp = await fetch(
-          'https://api.github.com/repos/' + s.repo + '/contents/' + path,
-          {
-            method: 'PUT',
-            headers: {
-              'Authorization': 'Bearer ' + s.token,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(body)
-          }
-        );
-
-        if (!resp.ok) {
-          var err = await resp.json();
-          throw new Error(err.message || 'GitHub API error');
-        }
-
-        showToast('Saved ' + path + ' to GitHub', 'success');
+        showToast('Saved ' + filename + ' and updated blog index', 'success');
         statusText.textContent = 'Saved to ' + s.repo + '/' + path;
       } catch (e) {
         showToast('Save failed: ' + e.message, 'error');
